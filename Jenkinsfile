@@ -1,5 +1,4 @@
 pipeline {
-    // Возвращаем использование нашего кастомного образа с Docker CLI!
     agent { label 'docker-agent' }
     
     environment {
@@ -34,7 +33,6 @@ pipeline {
         }
         stage('Canary Testing') {
             steps {
-                // Простой и надежный цикл совместимый с dash/sh
                 sh '''
                     echo "Проверка доступности canary-версии..."
                     for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
@@ -51,14 +49,16 @@ pipeline {
                 '''
             }
         }
-        stage('Promote to Production') {
-            steps {
-                sh 'docker stack deploy --with-registry-auth -c docker-compose.yaml app'
-            }
-        }
+        // МЕНЯЕМ ПОРЯДОК: Сначала чистим canary, чтобы освободить порт 8081
         stage('Cleanup Canary') {
             steps {
                 sh 'docker stack rm ${APP_NAME} || true'
+                sh 'sleep 10' // Даем Swarm время на освобождение порта
+            }
+        }
+        stage('Promote to Production') {
+            steps {
+                sh 'docker stack deploy --with-registry-auth -c docker-compose.yaml app'
             }
         }
     }
