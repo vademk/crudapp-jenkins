@@ -1,5 +1,5 @@
 pipeline {
-    // ЖЕСТКО заставляем работать на менеджере, игнорируя воркеров
+    // ЖЕСТКО заставляем работать на менеджере, чтобы избежать сетевых проблем воркеров
     agent { label 'master' } 
     
     environment {
@@ -29,13 +29,13 @@ pipeline {
         stage('Canary Deployment') {
             steps {
                 sh 'docker stack deploy --with-registry-auth -c docker-compose_canary.yaml ${APP_NAME}'
-                sh 'sleep 30' // Даем больше времени, чтобы не париться с curl
+                sh 'sleep 30' // Даем 30 секунд на полный старт БД и приложения
             }
         }
         stage('Canary Testing') {
             steps {
-                // Простая проверка, без сложных циклов
-                sh 'curl -f -s http://192.168.0.1:8081 || echo "Warning: Canary check failed, but continuing"'
+                // Простая проверка. Если не пройдет, пайплайн пойдет в post failure и сделает откат
+                sh 'curl -f -s http://192.168.0.1:8081 || exit 1'
             }
         }
         stage('Promote to Production') {
@@ -47,6 +47,12 @@ pipeline {
             steps {
                 sh 'docker stack rm ${APP_NAME} || true'
             }
+        }
+    }
+    post {
+        failure {
+            echo "Pipeline failed! Rolling back canary stack."
+            sh 'docker stack rm ${APP_NAME} || true'
         }
     }
 }
