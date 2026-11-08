@@ -29,12 +29,13 @@ pipeline {
         stage('Canary Deployment') {
             steps {
                 sh 'docker stack deploy --with-registry-auth -c docker-compose_canary.yaml ${APP_NAME}'
-                sh 'sleep 15'
+                sh 'sleep 25' // Даем БД и приложению больше времени на запуск
             }
         }
         stage('Canary Testing') {
             steps {
-                sh 'curl -f http://localhost:8081 || exit 1'
+                // Стучимся по IP менеджера, а не localhost, так как агент - это контейнер
+                sh 'curl -f http://192.168.0.1:8081 || exit 1'
             }
         }
         stage('Promote to Production') {
