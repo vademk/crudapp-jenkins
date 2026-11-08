@@ -1,6 +1,6 @@
 pipeline {
-    // ЖЕСТКО заставляем работать на менеджере, чтобы избежать сетевых проблем воркеров
-    agent { label 'master' } 
+    // 'any' означает "запускать на любом доступном узле, включая главный"
+    agent any 
     
     environment {
         DOCKER_HUB_USER = 'vademk'
@@ -29,12 +29,11 @@ pipeline {
         stage('Canary Deployment') {
             steps {
                 sh 'docker stack deploy --with-registry-auth -c docker-compose_canary.yaml ${APP_NAME}'
-                sh 'sleep 30' // Даем 30 секунд на полный старт БД и приложения
+                sh 'sleep 30'
             }
         }
         stage('Canary Testing') {
             steps {
-                // Простая проверка. Если не пройдет, пайплайн пойдет в post failure и сделает откат
                 sh 'curl -f -s http://192.168.0.1:8081 || exit 1'
             }
         }
