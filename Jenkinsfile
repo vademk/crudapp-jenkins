@@ -1,6 +1,6 @@
 pipeline {
-    // 'any' означает "запускать на любом доступном узле, включая главный"
-    agent any 
+    // Возвращаем использование нашего кастомного образа с Docker CLI!
+    agent { label 'docker-agent' }
     
     environment {
         DOCKER_HUB_USER = 'vademk'
@@ -34,7 +34,21 @@ pipeline {
         }
         stage('Canary Testing') {
             steps {
-                sh 'curl -f -s http://192.168.0.1:8081 || exit 1'
+                // Простой и надежный цикл совместимый с dash/sh
+                sh '''
+                    echo "Проверка доступности canary-версии..."
+                    for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
+                        if curl -f -s http://192.168.0.1:8081 > /dev/null; then
+                            echo "УСПЕХ: Canary работает!"
+                            exit 0
+                        fi
+                        echo "Попытка $i не удалась, ждем 5 сек..."
+                        sleep 5
+                    done
+                    echo "ОШИБКА: Canary не ответил за 60 секунд"
+                    docker service logs ${APP_NAME}_web-server --tail 20 || true
+                    exit 1
+                '''
             }
         }
         stage('Promote to Production') {
@@ -50,7 +64,7 @@ pipeline {
     }
     post {
         failure {
-            echo "Pipeline failed! Rolling back canary stack."
+            echo "Pipeline failed! Откат canary стека."
             sh 'docker stack rm ${APP_NAME} || true'
         }
     }
