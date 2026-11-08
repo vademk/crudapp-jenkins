@@ -29,23 +29,31 @@ pipeline {
         stage('Canary Deployment') {
             steps {
                 sh 'docker stack deploy --with-registry-auth -c docker-compose_canary.yaml ${APP_NAME}'
-                sh 'sleep 20' // Даем Swarm время на создание сети и контейнеров
+                sh 'sleep 25'
             }
         }
         stage('Canary Testing') {
             steps {
-                // Умная проверка с повторными попытками (до 50 секунд)
                 sh '''
-                    echo "Waiting for canary service to be ready..."
-                    for i in {1..10}; do
+                    echo "=== ПРОВЕРКА СТАТУСА СЕРВИСОВ ==="
+                    docker service ps ${APP_NAME}_web-server --no-trunc || true
+                    docker service ps ${APP_NAME}_db --no-trunc || true
+                    
+                    echo "=== ОЖИДАНИЕ ГОТОВНОСТИ CANARY (до 60 сек) ==="
+                    ATTEMPT=1
+                    while [ $ATTEMPT -le 12 ]; do
                         if curl -f -s http://192.168.0.1:8081 > /dev/null; then
-                            echo "SUCCESS: Canary is UP and responding!"
+                            echo "✅ УСПЕХ: Canary-версия работает и отвечает!"
                             exit 0
                         fi
-                        echo "Attempt $i failed, waiting 5 seconds..."
+                        echo "Попытка $ATTEMPT не удалась. Ждем 5 секунд..."
                         sleep 5
+                        ATTEMPT=$((ATTEMPT + 1))
                     done
-                    echo "ERROR: Canary service did not respond in time"
+                    
+                    echo "❌ ОШИБКА: Canary-сервис не ответил вовремя. Смотрим логи:"
+                    docker service logs ${APP_NAME}_web-server --tail 30 || true
+                    docker service logs ${APP_NAME}_db --tail 30 || true
                     exit 1
                 '''
             }
