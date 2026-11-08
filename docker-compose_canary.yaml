@@ -1,0 +1,22 @@
+version: '3.8'
+services:
+  web-server:
+    image: vademk/crudback:${BUILD_NUMBER}
+    deploy:
+      replicas: 1
+      labels:
+        - "traffic.weight=25"
+    ports:
+      - "8081:80"
+    environment:
+      - APP_ENV=canary
+      - DB_HOST=db
+    depends_on:
+      - db
+  db:
+    image: vademk/crudmysql:${BUILD_NUMBER}
+    deploy:
+      replicas: 1
+    environment:
+      - MYSQL_ROOT_PASSWORD=secret
+      - MYSQL_DATABASE=lena
